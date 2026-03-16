@@ -1,31 +1,54 @@
 import time
+import argparse
+import sys
 from pynput import keyboard
 
-# Nazwa pliku do zapisu danych
-LOG_FILE = "biometric_data.csv"
+# Konfiguracja argumentów
+parser = argparse.ArgumentParser(description="Biometryczny rejestrator zdarzeń klawiatury.")
+parser.add_argument("--name", type=str, default="biometric_data", help="Nazwa pliku wyjściowego (bez .csv)")
+parser.add_argument("--file", type=str, default="sentences.txt", help="Plik tekstowy ze zdaniami do przepisania")
+args = parser.parse_args()
+
+LOG_FILE = f"{args.name}.csv"
+SENTENCES_FILE = args.file
+
+# Wczytywanie zdań z pliku
+try:
+    with open(SENTENCES_FILE, "r", encoding="utf-8") as f:
+        sentences = [line.strip() for line in f if line.strip()]
+except FileNotFoundError:
+    print(f"Błąd: Nie znaleziono pliku '{SENTENCES_FILE}'. Utwórz go i dodaj zdania.")
+    sys.exit(1)
+
+if not sentences:
+    print("Błąd: Plik ze zdaniami jest pusty.")
+    sys.exit(1)
+
+# Globalny licznik zdań
+sentence_index = 0
+
+def show_next_sentence():
+    global sentence_index
+    if sentence_index < len(sentences):
+        print(f"\n[Zadanie {sentence_index + 1}/{len(sentences)}]")
+        print(f"PROSZĘ WPISAĆ ZDANIE: \n{sentences[sentence_index]}")
+        sentence_index += 1
+    else:
+        print("\n--- Koniec zdań w pliku. Naciśnij ESC, aby wyjść. ---")
 
 def write_to_file(key_name, action):
-    """Zapisuje dane w formacie: Globaltime; Key; action"""
-    global_time = time.time()  # Precyzyjny czas UNIX (w sekundach)
-    
+    global_time = time.time()
     try:
-        # Próba otwarcia pliku i dopisania linii
         with open(LOG_FILE, "a", encoding="utf-8") as f:
-            log_entry = f"{global_time}; {key_name}; {action}\n"
-            f.write(log_entry)
-            # Opcjonalnie: wypisywanie w konsoli dla podglądu
-            print(log_entry.strip())
+            f.write(f"{global_time}; {key_name}; {action}\n")
     except Exception as e:
         print(f"Błąd zapisu: {e}")
 
 def on_press(key):
     try:
-        # Obsługa zwykłych znaków
         key_name = key.char if hasattr(key, 'char') else str(key)
     except AttributeError:
-        # Obsługa klawiszy specjalnych (Shift, Ctrl itp.)
         key_name = str(key)
-        
     write_to_file(key_name, "keydown")
 
 def on_release(key):
@@ -33,17 +56,21 @@ def on_release(key):
         key_name = key.char if hasattr(key, 'char') else str(key)
     except AttributeError:
         key_name = str(key)
-        
+    
     write_to_file(key_name, "keyup")
 
-    # Zatrzymanie skryptu po naciśnięciu Esc (ułatwia testy)
+    # Logika zmiany zdania po Enterze
+    if key == keyboard.Key.enter:
+        show_next_sentence()
+
+    # Wyjście ze skryptu
     if key == keyboard.Key.esc:
-        print("\nZakończono zbieranie danych.")
+        print(f"\nZakończono. Dane zapisane w: {LOG_FILE}")
         return False
 
-# Inicjalizacja nasłuchiwania
-print(f"Rozpoczęto zbieranie danych do pliku: {LOG_FILE}")
-print("Naciśnij ESC, aby zakończyć...")
+# Start programu
+print(f"Rejestracja dla użytkownika: {args.name}")
+show_next_sentence()
 
 with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
     listener.join()
