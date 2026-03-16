@@ -1,0 +1,17 @@
+# Środowiska wirtualne
+venv/
+.venv/
+env/
+bin/
+lib/
+include/
+
+# Dane i logi 
+*.csv
+
+# Pliki Pythona i systemowe
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+Thumbs.db
