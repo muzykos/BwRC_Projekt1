@@ -2,6 +2,7 @@ import time
 import argparse
 import sys
 from pynput import keyboard
+import termios
 
 # Konfiguracja argumentów
 parser = argparse.ArgumentParser(description="Biometryczny rejestrator zdarzeń klawiatury.")
@@ -74,3 +75,5 @@ show_next_sentence()
 
 with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
     listener.join()
+
+termios.tcflush(sys.stdin, termios.TCIFLUSH)
