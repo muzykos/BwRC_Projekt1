@@ -1,16 +1,40 @@
 import time
 import argparse
 import sys
+import os
 from pynput import keyboard
 import termios
 
+# Wyłączamy wszystkie sygnały sterujące terminala (Ctrl+C, Z, S, Q, V)
+if os.name == 'posix':
+    # -isig: wyłącza Ctrl+C, Ctrl+Z, Ctrl+\
+    # -ixon: wyłącza Ctrl+S, Ctrl+Q
+    # -iexten: wyłącza Ctrl+V i Ctrl+O
+    os.system("stty -isig -ixon -iexten")
+
 # Konfiguracja argumentów
 parser = argparse.ArgumentParser(description="Biometryczny rejestrator zdarzeń klawiatury.")
-parser.add_argument("--name", type=str, default="biometric_data", help="Nazwa pliku wyjściowego (bez .csv)")
-parser.add_argument("--file", type=str, default="sentences.txt", help="Plik tekstowy ze zdaniami do przepisania")
+parser.add_argument("--name", type=str, default="biometric_data", help="Nazwa użytkownika/sesji")
+parser.add_argument("--file", type=str, default="sentences.txt", help="Plik tekstowy ze zdaniami")
 args = parser.parse_args()
 
-LOG_FILE = f"{args.name}.csv"
+# --- LOGIKA TWORZENIA STRUKTURY PLIKÓW ---
+user_dir = args.name
+
+# 1. Tworzymy folder o nazwie użytkownika (jeśli nie istnieje)
+if not os.path.exists(user_dir):
+    os.makedirs(user_dir)
+
+# 2. Szukamy kolejnego wolnego indeksu N
+n = 1
+while True:
+    potential_name = f"{args.name}_{n}.csv"
+    full_path = os.path.join(user_dir, potential_name)
+    if not os.path.exists(full_path):
+        LOG_FILE = full_path
+        break
+    n += 1
+
 SENTENCES_FILE = args.file
 
 # Wczytywanie zdań z pliku
@@ -18,14 +42,13 @@ try:
     with open(SENTENCES_FILE, "r", encoding="utf-8") as f:
         sentences = [line.strip() for line in f if line.strip()]
 except FileNotFoundError:
-    print(f"Błąd: Nie znaleziono pliku '{SENTENCES_FILE}'. Utwórz go i dodaj zdania.")
+    print(f"Błąd: Nie znaleziono pliku '{SENTENCES_FILE}'.")
     sys.exit(1)
 
 if not sentences:
     print("Błąd: Plik ze zdaniami jest pusty.")
     sys.exit(1)
 
-# Globalny licznik zdań
 sentence_index = 0
 
 def show_next_sentence():
@@ -35,7 +58,7 @@ def show_next_sentence():
         print(f"PROSZĘ WPISAĆ ZDANIE: \n{sentences[sentence_index]}")
         sentence_index += 1
     else:
-        print("\n--- Koniec zdań w pliku. Naciśnij ESC, aby wyjść. ---")
+        print("\n--- Koniec zdań. Naciśnij ESC, aby wyjść. ---")
 
 def write_to_file(key_name, action):
     global_time = time.time()
@@ -60,20 +83,28 @@ def on_release(key):
     
     write_to_file(key_name, "keyup")
 
-    # Logika zmiany zdania po Enterze
     if key == keyboard.Key.enter:
         show_next_sentence()
 
-    # Wyjście ze skryptu
     if key == keyboard.Key.esc:
         print(f"\nZakończono. Dane zapisane w: {LOG_FILE}")
         return False
 
 # Start programu
-print(f"Rejestracja dla użytkownika: {args.name}")
+print(f"Sesja dla: {args.name}")
+print(f"Plik wyjściowy: {LOG_FILE}")
 show_next_sentence()
 
+# Listener z opcją suppress=True (opcjonalnie, jeśli chcesz blokować terminal)
 with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
     listener.join()
 
-termios.tcflush(sys.stdin, termios.TCIFLUSH)
+# Czyszczenie bufora terminala po zakończeniu
+try:
+    termios.tcflush(sys.stdin, termios.TCIFLUSH)
+except:
+    pass
+
+# Przywracamy domyślne ustawienia terminala
+if os.name == 'posix':
+    os.system("stty isig ixon iexten")
