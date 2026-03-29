@@ -6,8 +6,6 @@ bin/
 lib/
 include/
 
-# Dane i logi 
-*.csv
 
 # Pliki Pythona i systemowe
 __pycache__/
